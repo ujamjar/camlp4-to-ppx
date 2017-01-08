@@ -12,11 +12,24 @@ open Camlp4.PreCast
 open Syntax
 open Camlp4_to_ppx
 
+let replace_field_name loc rtl_name field_name = 
+  if rtl_name <> field_name then
+    replace loc field_name
+
+let print_after_rtlname loc rtl_name field_name fmt = 
+  let open Printf in
+  print_after loc @@
+    if rtl_name = field_name then sprintf fmt ""
+    else sprintf fmt (sprintf "[@rtlname \"%s\"]" rtl_name)
+
 let () = 
     EXTEND Gram
         GLOBAL: module_expr module_type expr;
 
-        hc_ident: [ [ x = [UIDENT -> _loc] -> x | x = [LIDENT -> _loc] -> x ] ];
+        hc_uident: [ [ x=UIDENT -> x,_loc ] ];
+        hc_lident: [ [ x=LIDENT -> x,_loc ] ];
+
+        hc_ident: [ [ x = hc_uident -> x | x = hc_lident -> x ] ];
 
         hc_bits: [ [ "["; x = [expr -> _loc]; "]" -> x,_loc ] ];
 
@@ -27,39 +40,46 @@ let () =
 
         [ [ o=["(" -> _loc]; LIDENT; x=[":" -> _loc]; LIST1 [x = UIDENT -> x] SEP "."; 
             c=[")" -> _loc] -> 
-              replace o "";
-              replace x ": 'a ";
-              replace c ".t;"
-          | i = hc_ident; v = OPT hc_vector; b = OPT hc_bits -> begin
-                  match v,b with
-                  | None,None -> (* a *)
-                      print_after i " : 'a;"
-                  | None,Some(b,e) -> (* a[1] *)
-                      print_after i " : 'a";
-                      print_before b "@bits ";
-                      print_after e ";"
-                  | Some(`array,(o,v,c)),None -> (* a{|7|} *)
-                      print_after i " : 'a array";
-                      replace o "[@length ";
-                      replace c "]";
-                      print_after c ";"
-                  | Some(`array,(o,v,c)),Some(b,e) -> (* a{|7|}[3] *)
-                      print_after i " : 'a array";
-                      replace o "[@length ";
-                      replace c "]";
-                      print_before b "@bits ";
-                      print_after e ";"
-                  | Some(`list,(o,v,c)),None -> (* a{7} *)
-                      print_after i " : 'a list";
-                      replace o "[@length ";
-                      replace c "]";
-                      print_after c ";"
-                  | Some(`list,(o,v,c)),Some(b,e) -> (* a{7}[3] *)
-                      print_after i " : 'a list";
-                      replace o "[@length ";
-                      replace c "]";
-                      print_before b "@bits ";
-                      print_after e ";"
+            replace o "";
+            replace x ": 'a ";
+            replace c ".t;"
+          | (rtl_name,i) = hc_ident; v = OPT hc_vector; b = OPT hc_bits -> begin
+            let field_name = String.lowercase_ascii rtl_name in
+            match v,b with
+            | None,None -> (* a *)
+              replace_field_name i rtl_name field_name;
+              print_after_rtlname i rtl_name field_name " : 'a%s;"
+            | None,Some(b,e) -> (* a[1] *)
+              replace_field_name i rtl_name field_name;
+              print_after i " : 'a";
+              print_before b "@bits ";
+              print_after_rtlname e rtl_name field_name "%s;"
+            | Some(`array,(o,v,c)),None -> (* a{|7|} *)
+              replace_field_name i rtl_name field_name;
+              print_after i " : 'a array";
+              replace o "[@length ";
+              replace c "]";
+              print_after_rtlname c rtl_name field_name "%s;"
+            | Some(`array,(o,v,c)),Some(b,e) -> (* a{|7|}[3] *)
+              replace_field_name i rtl_name field_name;
+              print_after i " : 'a array";
+              replace o "[@length ";
+              replace c "]";
+              print_before b "@bits ";
+              print_after_rtlname e rtl_name field_name "%s;"
+            | Some(`list,(o,v,c)),None -> (* a{7} *)
+              replace_field_name i rtl_name field_name;
+              print_after i " : 'a list";
+              replace o "[@length ";
+              replace c "]";
+              print_after_rtlname c rtl_name field_name "%s;"
+            | Some(`list,(o,v,c)),Some(b,e) -> (* a{7}[3] *)
+              replace_field_name i rtl_name field_name;
+              print_after i " : 'a list";
+              replace o "[@length ";
+              replace c "]";
+              print_before b "@bits ";
+              print_after_rtlname e rtl_name field_name "%s;"
           end
         ] ];
 
@@ -72,16 +92,20 @@ let () =
             replace o "";
             replace x ": 'a ";
             replace c ".t;"
-          | i = hc_ident; v = OPT hc_vector_simple -> begin
-                  match v with
-                  | None -> 
-                    print_after i " : 'a;"
-                  | Some(`array,o,c) -> 
-                    replace o " : 'a array;";
-                    replace c ""
-                  | Some(`list,o,c) -> 
-                    replace o " : 'a list;";
-                    replace c ""
+          | (rtl_name,i) = hc_ident; v = OPT hc_vector_simple -> begin
+            let field_name = String.lowercase_ascii rtl_name in
+            match v with
+            | None -> 
+              replace_field_name i rtl_name field_name;
+              print_after i " : 'a;"
+            | Some(`array,o,c) -> 
+              replace_field_name i rtl_name field_name;
+              replace o " : 'a array;";
+              replace c ""
+            | Some(`list,o,c) -> 
+              replace_field_name i rtl_name field_name;
+              replace o " : 'a list;";
+              replace c ""
           end
         ] ];
 
