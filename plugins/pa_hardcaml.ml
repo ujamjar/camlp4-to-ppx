@@ -110,17 +110,25 @@ let () =
         ] ];
 
         module_expr: AFTER "top" 
-        [ [ i = ["interface" -> _loc]; if_ports = LIST0 [x = hc_signal -> x]; 
+        [ [ i = ["interface" -> _loc]; l = LIST0 [x = hc_signal -> x]; 
             e = ["end" -> _loc] ->
-            replace i "struct\ntype 'a t = {";
-            replace e "}[@@deriving hardcaml]\nend";
+            if l=[] then
+              replace _loc "HardCaml.Interface.Empty"
+            else begin
+              replace i "struct\ntype 'a t = {";
+              replace e "}[@@deriving hardcaml]\nend";
+            end;
             <:module_expr< >>
         ] ];
 
         module_type: AFTER "sig"
-        [ [ i=["interface" -> _loc]; LIST0 [x = hc_signal_simple -> x]; e=["end" -> _loc] ->
-            replace i "sig\ntype 'a t = {";
-            replace e "}[@@deriving hardcaml]\nend";
+        [ [ i=["interface" -> _loc]; l = LIST0 [x = hc_signal_simple -> x]; e=["end" -> _loc] ->
+            if l=[] then
+              replace _loc "HardCaml.Interface.Empty"
+            else begin
+              replace i "sig\ntype 'a t = {";
+              replace e "}[@@deriving hardcaml]\nend";
+            end;
             <:module_type< >>
         ] ];
 
